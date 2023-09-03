@@ -37,7 +37,7 @@ config.read(configFile)
 
 out_files = {"Library": {"name": "Library", "list": []}}
 
-for (root, dirs, files) in os.walk(config['videos']['videos_relative_path']):
+for (root, dirs, files) in os.walk(config['videos']['videos_relative_path'], followlinks=True):
     for dir in dirs:
         directory = (os.path.join(root, dir))
         dumpDir = directory.replace(
@@ -61,14 +61,16 @@ for (root, dirs, files) in os.walk(config['videos']['videos_relative_path']):
             encodings_resolution = ""
             result = cursor.execute(
                 "SELECT encodings_name, encodings_resolution FROM videos WHERE identifier = :identifier AND title = :title AND extension = :extension", {
-                    "identifier": config['videos']['identifier'], 
-                    "title": title, 
-                    "extension": extension, 
+                    "identifier": config['videos']['identifier'],
+                    "title": title,
+                    "extension": extension,
                 })
             row = result.fetchone()
             if row is None:
-                cmd = ["ffprobe -v quiet -print_format json -show_format -show_streams " + pipes.quote(fullfile)]
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+                cmd = [
+                    "ffprobe -v quiet -print_format json -show_format -show_streams " + pipes.quote(fullfile)]
+                result = subprocess.run(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                 metadataJson = result.stdout
                 d = json.loads(metadataJson)
                 streams = d.get("streams", [])
@@ -98,12 +100,46 @@ for (root, dirs, files) in os.walk(config['videos']['videos_relative_path']):
             if not subDir in out_files:
                 subDir = "Library"
 
+            stereoModeTestTitle = title
+            screenType = "flat"
+            if config['videos']['sbs'] == "true":
+                if "_360" in title[-4:]:
+                    screenType = "sphere"
+                    stereoModeTestTitle = title[:-4]
+                elif "_mkx200" in title[-7:]:
+                    screenType = "mkx200"
+                    stereoModeTestTitle = title[:-7]
+                elif "_rf52" in title[-5:]:
+                    screenType = "rf52"
+                    stereoModeTestTitle = title[:-5]
+                elif "_fisheye" in title[-8:]:
+                    screenType = "fisheye"
+                    stereoModeTestTitle = title[:-8]
+                elif "_fisheye" in title[-8:]:
+                    screenType = "fisheye"
+                    stereoModeTestTitle = title[:-8]
+                elif "_screen" in title[-7:]:
+                    screenType = "flat"
+                else:
+                    screenType = "dome"
+
+            stereoMode = "off"
+            if config['videos']['sbs'] == "true":
+                if "_TB" in stereoModeTestTitle[-3:]:
+                    stereoMode = "tb"
+                elif "_SBS" in stereoModeTestTitle[-4:]:
+                    stereoMode = "sbs"
+                elif "_screen" in stereoModeTestTitle[-7:]:
+                    stereoMode = "off"
+                else:
+                    stereoMode = "sbs"
+
             out_files[subDir]["list"].append(
                 {"title": title,
                  "thumbnailUrl": img,
                  "is3d": "true" if config['videos']['sbs'] == "true" else "false",
-                 "stereoMode": "sbs" if config['videos']['sbs'] == "true" else "off",
-                 "screenType": "dome" if config['videos']['sbs'] == "true" else "flat",
+                 "stereoMode": stereoMode,
+                 "screenType": screenType,
                  "encodings": [
                      {
                          "name": encodings_name,
