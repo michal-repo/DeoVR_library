@@ -12,7 +12,7 @@ import pipes
 connection = sqlite3.connect("videos_metadata.db")
 cursor = connection.cursor()
 
-cursor.execute("CREATE TABLE IF NOT EXISTS videos(id INTEGER PRIMARY KEY AUTOINCREMENT, identifier, title, extension, encodings_name, encodings_resolution)")
+cursor.execute("CREATE TABLE IF NOT EXISTS videos(id INTEGER PRIMARY KEY AUTOINCREMENT, identifier, title, extension, encodings_name, encodings_resolution, framerate)")
 
 if not len(sys.argv) > 1:
     print("Usage: pass config ini file as first parameter, you can force metadata rescan by setting second parameter to true (false by default)\neg.\npython3 generateJson.py config.ini\npython3 generateJson.py config.ini true")
@@ -60,7 +60,7 @@ for (root, dirs, files) in os.walk(config['videos']['videos_relative_path'], fol
             encodings_name = ""
             encodings_resolution = ""
             result = cursor.execute(
-                "SELECT encodings_name, encodings_resolution FROM videos WHERE identifier = :identifier AND title = :title AND extension = :extension", {
+                "SELECT encodings_name, encodings_resolution, framerate FROM videos WHERE identifier = :identifier AND title = :title AND extension = :extension", {
                     "identifier": config['videos']['identifier'],
                     "title": title,
                     "extension": extension,
@@ -78,13 +78,16 @@ for (root, dirs, files) in os.walk(config['videos']['videos_relative_path'], fol
                     if "codec_type" in stream:
                         if stream["codec_type"] == "video":
                             encodings_name = stream["codec_name"]
+                            encodings_fps = round(
+                                eval(stream["avg_frame_rate"]))
                             encodings_resolution = stream["height"]
-                            cursor.execute("insert into videos(identifier, title, extension, encodings_name, encodings_resolution) values (?, ?, ?, ?, ?)", (
-                                config['videos']['identifier'], title, extension, encodings_name, encodings_resolution))
+                            cursor.execute("insert into videos(identifier, title, extension, encodings_name, encodings_resolution, framerate) values (?, ?, ?, ?, ?, ?)", (
+                                config['videos']['identifier'], title, extension, encodings_name, encodings_resolution, encodings_fps))
                             connection.commit()
             else:
                 encodings_name = row[0]
                 encodings_resolution = row[1]
+                encodings_fps = row[2]
 
             entry = fullfile.replace(
                 config['videos']['videos_relative_path'], "")
@@ -134,12 +137,18 @@ for (root, dirs, files) in os.walk(config['videos']['videos_relative_path'], fol
                 else:
                     stereoMode = "sbs"
 
+            hasAlpha = FALSE
+            if "_ALPHA" in title:
+                hasAlpha = TRUE
+
             out_files[subDir]["list"].append(
                 {"title": title,
                  "thumbnailUrl": img,
                  "is3d": "true" if config['videos']['sbs'] == "true" else "false",
                  "stereoMode": stereoMode,
                  "screenType": screenType,
+                 "fps": encodings_fps,
+                 "hasAlpha": "true" if hasAlpha is TRUE else "false",
                  "encodings": [
                      {
                          "name": encodings_name,
